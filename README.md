@@ -7,11 +7,4 @@
 
 ## 원문이 보이는 내 컴퓨터용 페이지 만들기
 
-기출 문제지 PDF(2024, 2025, 2026학년도)를 이 폴더에 두고 실행한다.
-
-```
-pip install pdfplumber
-python kice_extract.py --dir . --page index.html --html-out similarity-lab-원문.html
-```
-
-만들어진 `similarity-lab-원문.html`을 열면 지문과 선지가 텍스트로 보인다. 이 파일과 `kice_items.json`에는 원문이 들어 있으므로 인터넷에 올리지 않는다. (`.gitignore`가 막아 준다.)
+- kice_items.json 다운받아서 집어넣기
