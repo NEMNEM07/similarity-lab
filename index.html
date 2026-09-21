@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>어떤 유사도가 수능 지문의 정답을 찾아낼까</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F5; --paper:#FFFFFF; --ink:#101828; --ink2:#475467; --line:#D0D5DD; --track:#E4E8EE;
+  --cos:#1D4ED8; --jac:#B45309; --euc:#BE123C; --ok:#087443; --okbg:#E3F5EA; --warnbg:#FFF4D6;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1420; --paper:#172033; --ink:#EAF0FA; --ink2:#A6B3C8; --line:#2B3A55; --track:#22304A;
+    --cos:#7AA2FF; --jac:#F4B740; --euc:#FF7A93; --ok:#5FD08F; --okbg:#123424; --warnbg:#3A3010;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1420; --paper:#172033; --ink:#EAF0FA; --ink2:#A6B3C8; --line:#2B3A55; --track:#22304A;
+  --cos:#7AA2FF; --jac:#F4B740; --euc:#FF7A93; --ok:#5FD08F; --okbg:#123424; --warnbg:#3A3010;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;font-size:16px;line-height:1.65}
+.wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+h1,h2{font-family:'Noto Serif KR','Batang',serif;margin:0}
+h1{font-size:clamp(26px,5.2vw,40px);line-height:1.3;font-weight:700;letter-spacing:-.01em;margin-bottom:14px}
+h2{font-size:22px;font-weight:700;margin-bottom:14px}
+h3{font-size:16px;margin:22px 0 6px}
+p{margin:0 0 10px}
+.lead{max-width:64ch;color:var(--ink2)}
+.small{font-size:14px;color:var(--ink2)}
+.block{margin-top:44px}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px}
+button,select,textarea,input{font:inherit;color:inherit}
+a:focus-visible,button:focus-visible,summary:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--cos);outline-offset:2px}
+
+/* 설정 */
+.group{margin-bottom:16px}
+.group-label{font-weight:700;font-size:14px;margin-bottom:6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{font-size:14px;padding:8px 14px;min-height:40px;border:1px solid var(--line);background:var(--paper);border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.hint{font-size:14px;color:var(--ink2);margin-top:6px}
+
+/* 결과 막대 */
+.bar-row{display:grid;grid-template-columns:130px 1fr 210px;gap:8px 16px;align-items:center;margin:18px 0}
+.bar-name{font-weight:700}
+.m-cos .bar-name{color:var(--cos)} .m-jac .bar-name{color:var(--jac)} .m-euc .bar-name{color:var(--euc)}
+.bar-track{position:relative;height:30px;background:var(--track);border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;transition:width .5s ease;min-width:2px}
+.m-cos .bar-fill{background:var(--cos)} .m-jac .bar-fill{background:var(--jac)} .m-euc .bar-fill{background:var(--euc)}
+.chance{position:absolute;left:20%;top:0;bottom:0;border-left:2px dashed var(--ink)}
+.bar-val{font-size:15px;line-height:1.4}
+.bar-val b{font-size:22px;font-variant-numeric:tabular-nums}
+.bar-val span{display:block;font-size:13px;color:var(--ink2)}
+.legend{font-size:13px;color:var(--ink2);margin-top:4px}
+.summary-line{margin-top:14px;padding:12px 14px;border-radius:8px;background:var(--warnbg)}
+@media (max-width:720px){
+  .bar-row{grid-template-columns:1fr;gap:4px}
+}
+
+/* 비교표 */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:14px;font-weight:700}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+th.c-cos{color:var(--cos)} th.c-jac{color:var(--jac)} th.c-euc{color:var(--euc)}
+.matrix td.best{font-weight:700;background:var(--okbg)}
+.matrix tr.now td{border-bottom:2px solid var(--ink)}
+.matrix button{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:13px}
+
+/* 문항 */
+details.prob{background:var(--paper);border:1px solid var(--line);border-radius:10px;margin-bottom:12px}
+details.prob>summary{cursor:pointer;padding:14px 16px;list-style:none;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+details.prob>summary::-webkit-details-marker{display:none}
+.ptitle{font-weight:700;margin-right:4px}
+.chip{font-size:13px;padding:1px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.chip.c-cos{color:var(--cos)} .chip.c-jac{color:var(--jac)} .chip.c-euc{color:var(--euc)}
+.chip.hit{background:var(--okbg);font-weight:700}
+.passage{font-family:'Noto Serif KR','Batang',serif;border:1px solid var(--ink);padding:16px 18px;line-height:1.95;margin:0 16px 14px}
+.pbody{padding-bottom:6px}
+.ptable{margin:0 16px 16px}
+.ptable td.opt{min-width:260px}
+.optnum{display:inline-block;width:1.6em;font-weight:700}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:0 8px;margin-left:6px;border-radius:999px;background:var(--ok);color:var(--paper)}
+.shared{font-size:13px;color:var(--ink2);margin-left:1.6em}
+tr.correct td{background:var(--okbg)}
+td.pick{font-weight:700}
+.pk{display:block;font-size:12px;font-weight:700}
+.cell-cos.pick{color:var(--cos)} .cell-jac.pick{color:var(--jac)} .cell-euc.pick{color:var(--euc)}
+.links{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.btnlink{display:inline-block;padding:10px 16px;min-height:44px;border:1px solid var(--ink);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;font-weight:700;text-decoration:none;cursor:pointer}
+.btnlink:hover{background:var(--ink);color:var(--paper)}
+.chip.negtag{border-style:dashed;color:var(--ink2)}
+.del{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:4px 12px;cursor:pointer;font-size:13px;margin:0 16px 14px}
+
+/* 입력 폼 */
+label.f{display:block;font-weight:700;font-size:14px;margin:12px 0 4px}
+textarea,select,input.oi{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);line-height:1.6}
+textarea{resize:vertical;min-height:90px}
+.optrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.optrow span{font-weight:700;width:1.6em;flex:none}
+.btn{display:inline-block;margin-top:12px;padding:10px 20px;border:0;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:700;cursor:pointer;min-height:44px}
+.msg{margin-top:10px;font-size:14px}
+.msg.err{color:var(--euc)}
+
+/* 노트 */
+.formula{font-family:'Noto Serif KR',serif;background:var(--bg);border-left:4px solid var(--ink);padding:8px 14px;margin:6px 0 10px;overflow-x:auto;white-space:nowrap}
+@media (prefers-reduced-motion: reduce){ .bar-fill{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>어떤 유사도가 수능 지문의 정답을 찾아낼까?</h1>
+  <p class="lead">지문과 다섯 선지를 낱말 벡터로 바꾸고, 지문과 가장 비슷한 선지를 정답이라고 고르게 했다. 코사인 유사도, 자카드 유사도, 유클리드 거리 가운데 실제 정답을 가장 잘 맞히는 방법을 비교한다.</p>
+  <p class="small">실제 수능 기출은 저작권 때문에 지문과 선지를 이 페이지에 싣지 않고 계산한 수치만 담았다. 원문은 내 컴퓨터에서 만든 파일을 불러와 이 브라우저 안에서만 볼 수 있다.</p>
+</header>
+
+<section class="block" id="settings" aria-labelledby="h-set">
+  <h2 id="h-set">실험 설정</h2>
+  <div class="panel">
+    <div class="group">
+      <div class="group-label">실험 자료</div>
+      <div class="seg" role="group" aria-label="실험 자료">
+        <button type="button" data-data="real">실제 수능 기출 18문항 (수치만)</button>
+        <button type="button" data-data="own">내가 넣은 문제</button>
+      </div>
+      <div class="hint" id="dataHint"></div>
+    </div>
+    <div class="group">
+      <div class="group-label">낱말 나누는 방식</div>
+      <div class="seg" role="group" aria-label="낱말 나누는 방식">
+        <button type="button" data-mode="word">어절 그대로</button>
+        <button type="button" data-mode="stem">조사를 뗀 어절</button>
+        <button type="button" data-mode="bigram">두 글자 조각</button>
+      </div>
+      <div class="hint" id="modeHint"></div>
+    </div>
+    <div class="group" style="margin-bottom:0">
+      <div class="group-label">벡터의 값</div>
+      <div class="seg" role="group" aria-label="벡터의 값">
+        <button type="button" data-weight="tf">단어 빈도수</button>
+        <button type="button" data-weight="tfidf">단어 빈도수 × 역 빈도수</button>
+      </div>
+      <div class="hint">자카드 유사도는 낱말이 있는지 없는지만 보므로 이 설정을 바꿔도 값이 같다.</div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="results" aria-labelledby="h-res">
+  <h2 id="h-res">결과: 누가 정답을 더 많이 골랐나</h2>
+  <div class="panel">
+    <div id="bars"></div>
+    <div id="typeSplit" style="margin-top:18px"></div>
+    <div class="legend">점선은 다섯 선지에서 무작위로 찍었을 때의 기대 정답률 20%이다. 가장 높은 점수의 선지가 둘 이상이면 정답률을 나누어 계산했다.</div>
+    <div class="summary-line" id="autoLine"></div>
+  </div>
+</section>
+
+<section class="block" id="matrix" aria-labelledby="h-mat">
+  <h2 id="h-mat">설정을 바꿔 가며 비교</h2>
+  <div class="panel">
+    <p class="small">여섯 가지 설정에서 정답 선지를 고른 문항 수이다. 행마다 가장 높은 값을 표시했다.</p>
+    <div class="tablewrap"><table class="matrix" id="matrixTable"></table></div>
+  </div>
+</section>
+
+<section class="block" id="problems" aria-labelledby="h-prob">
+  <h2 id="h-prob">문항별로 살펴보기</h2>
+  <p class="small">문항을 열면 지문과 선지별 점수가 나온다. 정답 선지는 초록색으로, 각 방법이 고른 선지는 굵게 표시된다.</p>
+  <div class="panel" id="loadBox" style="margin-bottom:14px">
+    <p class="small" style="margin-top:0">기출 원문은 이 페이지에 올려 두지 않았다. 내 컴퓨터에서 <b>kice_extract.py</b>로 만든 <b>kice_items.json</b>을 한 번 열면 지문과 선지가 이 브라우저 안에서만 표시되고, 이 브라우저에 저장되어 다음에 열 때 자동으로 적용된다.</p>
+    <input type="file" id="itemFile" accept=".json,application/json" aria-label="원문 파일 열기">
+    <button type="button" class="del" id="clearText" style="margin:8px 0 0">저장된 원문 지우기</button>
+    <div class="msg" id="loadMsg" role="status"></div>
+  </div>
+  <div id="probList"></div>
+</section>
+
+<section class="block" id="custom" aria-labelledby="h-cus">
+  <h2 id="h-cus">내 문제 넣어 보기</h2>
+  <div class="panel">
+    <p class="small">입력한 내용은 이 브라우저 안에서만 계산되며 어디로도 전송되지 않는다. 기출 문제를 넣을 때는 출처를 보고서에 밝히는 것이 좋다.</p>
+    <label class="f" for="cPassage">지문</label>
+    <textarea id="cPassage" placeholder="지문을 붙여 넣는다."></textarea>
+    <div class="f" style="margin-bottom:6px">선지</div>
+    <div class="optrow"><span>①</span><input type="text" class="oi" id="opt0" aria-label="1번 선지" autocomplete="off"></div>
+    <div class="optrow"><span>②</span><input type="text" class="oi" id="opt1" aria-label="2번 선지" autocomplete="off"></div>
+    <div class="optrow"><span>③</span><input type="text" class="oi" id="opt2" aria-label="3번 선지" autocomplete="off"></div>
+    <div class="optrow"><span>④</span><input type="text" class="oi" id="opt3" aria-label="4번 선지" autocomplete="off"></div>
+    <div class="optrow"><span>⑤</span><input type="text" class="oi" id="opt4" aria-label="5번 선지" autocomplete="off"></div>
+    <label class="f" for="cAnswer">정답 번호</label>
+    <select id="cAnswer"><option value="1">1번</option><option value="2">2번</option><option value="3">3번</option><option value="4">4번</option><option value="5">5번</option></select>
+    <label class="f" style="font-weight:500;display:flex;gap:8px;align-items:center"><input type="checkbox" id="cNeg"> ‘적절하지 않은(일치하지 않는) 것’을 고르는 문제</label>
+    <button type="button" class="btn" id="addBtn">문제 추가</button>
+    <div class="msg" id="addMsg" role="status"></div>
+  </div>
+</section>
+
+<section class="block" id="formulas" aria-labelledby="h-form">
+  <h2 id="h-form">사용한 공식</h2>
+  <div class="panel">
+    <div class="formula">벡터의 값 = 단어 빈도수　또는　단어 빈도수 × 역 빈도수</div>
+    <div class="formula">역 빈도수 = ln( 전체 문서 수 N ÷ 문서 빈도수 )</div>
+    <div class="formula">코사인 유사도 = (A · B) ÷ (|A| |B|)　　클수록 비슷</div>
+    <div class="formula">자카드 유사도 = |A ∩ B| ÷ |A ∪ B|　　클수록 비슷</div>
+    <div class="formula">유클리드 거리 = √( Σ (aᵢ − bᵢ)² )　　작을수록 비슷</div>
+    <div class="formula" style="margin-bottom:0">|A − B|² = |A|² + |B|² − 2 (A · B)</div>
+  </div>
+</section>
+
+<section class="block" id="resources" aria-labelledby="h-src">
+  <h2 id="h-src">코드와 자료 내려받기</h2>
+  <div class="panel">
+    <p style="margin-top:0">이 페이지의 소스 코드와 기출 원문 추출 스크립트는 깃허브 저장소에 올려 두었다. 기출 원문은 저장소에 없다.</p>
+    <div class="links">
+      <a class="btnlink" id="lnkRepo" target="_blank" rel="noopener noreferrer">깃허브 저장소 열기</a>
+      <a class="btnlink" id="lnkZip" target="_blank" rel="noopener noreferrer">저장소 전체 내려받기 (ZIP)</a>
+      <button type="button" class="btnlink" id="dlScript">kice_extract.py 내려받기</button>
+    </div>
+    <p class="small">원문이 보이는 내 컴퓨터용 페이지 만들기: 내려받은 파일과 기출 문제지 PDF를 한 폴더에 두고 아래 명령을 실행한다.</p>
+    <div class="formula">python kice_extract.py --dir . --page index.html --html-out similarity-lab-원문.html</div>
+    <p class="small" style="margin-bottom:0">내려받기 버튼이 동작하지 않으면 깃허브 저장소에서 받는다.</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+/*CORE_START*/
+const CIRC=['①','②','③','④','⑤'];
+const BASE=[];
+let custom=[];
+const allProblems=()=>BASE.concat(custom);
+
+const MEASURES=[
+ {key:'cos',name:'코사인 유사도',short:'코사인',higher:true,fmt:v=>v.toFixed(3)},
+ {key:'jac',name:'자카드 유사도',short:'자카드',higher:true,fmt:v=>v.toFixed(3)},
+ {key:'euc',name:'유클리드 거리',short:'유클리드',higher:false,fmt:v=>v.toFixed(2)}
+];
+const MODES=[['word','어절 그대로'],['stem','조사를 뗀 어절'],['bigram','두 글자 조각']];
+const WEIGHTS=[['tf','단어 빈도수'],['tfidf','단어 빈도수 × 역 빈도수']];
+
+const JOSA=['에서는','으로는','으로서','으로써','에게서','이라고','이라는','에서','에게','으로','까지','부터','처럼','보다','마다','이며','이고','라는','에는','에도','와의','과의','하는','하여','하고','이다','한다','된다','의','은','는','이','가','을','를','에','와','과','도','로','만','며','고'];
+function clean(s){return s.replace(/[^가-힣A-Za-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();}
+function stripJosa(w){
+  if(w.length<=1) return w;
+  for(const j of JOSA){ if(w.length-j.length>=2 && w.endsWith(j)) return w.slice(0,w.length-j.length); }
+  return w;
+}
+function tokens(text,mode){
+  const words=clean(text).split(' ').filter(Boolean);
+  if(mode==='word') return words;
+  if(mode==='stem') return words.map(stripJosa);
+  const out=[];
+  for(const w of words){
+    if(w.length<2){out.push(w);continue;}
+    for(let i=0;i<w.length-1;i++) out.push(w.slice(i,i+2));
+  }
+  return out;
+}
+function count(toks){const m=new Map();for(const t of toks)m.set(t,(m.get(t)||0)+1);return m;}
+const sum=it=>{let s=0;for(const v of it)s+=v;return s;};
+const mean=a=>a.length?sum(a)/a.length:0;
+
+function dotp(a,b){let s=0;const x=a.size<b.size?a:b,y=a.size<b.size?b:a;for(const [k,v] of x){const w=y.get(k);if(w)s+=v*w;}return s;}
+function norm(a){let s=0;for(const v of a.values())s+=v*v;return Math.sqrt(s);}
+function cosine(a,b){const d=norm(a)*norm(b);return d?dotp(a,b)/d:0;}
+function jaccard(a,b){let inter=0;for(const k of a.keys())if(b.has(k))inter++;const uni=a.size+b.size-inter;return uni?inter/uni:0;}
+function euclid(a,b){let s=0;for(const [k,v] of a){const w=b.get(k)||0;s+=(v-w)*(v-w);}for(const [k,w] of b){if(!a.has(k))s+=w*w;}return Math.sqrt(s);}
+
+function judgeOne(scores,ans,higher){
+  const EPS=1e-9,s=scores[ans];
+  let better=0,tie=0;
+  scores.forEach((v,i)=>{
+    if(i===ans)return;
+    if(higher?v>s+EPS:v<s-EPS)better++;
+    else if(Math.abs(v-s)<=EPS)tie++;
+  });
+  const best=higher?Math.max(...scores):Math.min(...scores);
+  const picks=[];scores.forEach((v,i)=>{if(Math.abs(v-best)<=EPS)picks.push(i);});
+  return {credit:better===0?1/(tie+1):0,rank:1+better+tie/2,picks};
+}
+
+function evaluate(mode,weight){
+  const probs=allProblems();
+  const prep=probs.map(p=>({p,maps:[p.passage].concat(p.options).map(t=>count(tokens(t,mode)))}));
+  const df=new Map();let N=0;
+  for(const r of prep)for(const m of r.maps){N++;for(const k of m.keys())df.set(k,(df.get(k)||0)+1);}
+  const W=m=>{
+    if(weight==='tf')return m;
+    const r=new Map();for(const [k,v] of m)r.set(k,v*Math.log(N/df.get(k)));return r;
+  };
+  const per=prep.map(r=>{
+    const vecs=r.maps.map(W);
+    const scores={cos:[],jac:[],euc:[]},lens=[];
+    for(let i=1;i<=5;i++){
+      scores.cos.push(cosine(vecs[0],vecs[i]));
+      scores.jac.push(jaccard(r.maps[0],r.maps[i]));
+      scores.euc.push(euclid(vecs[0],vecs[i]));
+      lens.push(sum(r.maps[i].values()));
+    }
+    const ans=r.p.answer-1,judge={};
+    for(const m of MEASURES)judge[m.key]=judgeOne(scores[m.key],ans,m.higher!==!!r.p.neg);
+    return {p:r.p,maps:r.maps,scores,lens,judge,ans};
+  });
+  const n=per.length,total={};
+  for(const m of MEASURES){
+    let credit=0,rank=0,cl=0;
+    for(const e of per){const j=e.judge[m.key];credit+=j.credit;rank+=j.rank;cl+=mean(j.picks.map(i=>e.lens[i]));}
+    total[m.key]={credit,rank:rank/n,chosenLen:cl/n};
+  }
+  return {n,per,total,mode,weight,
+    correctLen:mean(per.map(e=>e.lens[e.ans])),
+    optLen:mean(per.reduce((a,e)=>a.concat(e.lens),[]))};
+}
+/*CORE_END*/
+
+/* ---------- 화면 ---------- */
+const state={data:'real',mode:'word',weight:'tf'};
+/* 실제 수능 기출 18문항: 지문·선지는 싣지 않고 유사도 점수만 담았다. 키는 '나누는 방식|벡터의 값'. */
+const REAL=[{"y":2026,"q":4,"neg":false,"ans":1,"scope":"가+나","scores":{"word|tf":{"cos":[0.19059,0.14294,0.16412,0.18529,0.17924],"jac":[0.02162,0.0134,0.01613,0.02439,0.01892],"euc":[41.6173,41.833,41.7373,41.6413,41.6773]},"word|tfidf":{"cos":[0.14173,0.08183,0.0915,0.12059,0.10457],"jac":[0.02162,0.0134,0.01613,0.02439,0.01892],"euc":[136.2688,137.1975,137.0433,136.5751,136.8186]},"stem|tf":{"cos":[0.30343,0.24108,0.29096,0.2868,0.26014],"jac":[0.03425,0.02373,0.03072,0.04138,0.03082],"euc":[52.6118,52.8961,52.6688,52.6878,52.8299]},"stem|tfidf":{"cos":[0.19714,0.1308,0.16652,0.18094,0.14963],"jac":[0.03425,0.02373,0.03072,0.04138,0.03082],"euc":[172.3621,173.175,172.6488,172.5105,172.9533]},"bigram|tf":{"cos":[0.25222,0.19799,0.25091,0.25251,0.21603],"jac":[0.03475,0.02667,0.02868,0.03846,0.02857],"euc":[85.0706,85.3581,85.047,85.0529,85.235]},"bigram|tfidf":{"cos":[0.16656,0.11725,0.13159,0.15952,0.12013],"jac":[0.03475,0.02667,0.02868,0.03846,0.02857],"euc":[274.7632,275.4786,275.1928,274.8149,275.4078]}},"lens":{"word":[18,18,18,18,17],"stem":[18,18,18,18,17],"bigram":[30,33,32,33,34]}},{"y":2026,"q":5,"neg":true,"ans":4,"scope":"가","scores":{"word|tf":{"cos":[0.14249,0.11409,0.13369,0.12268,0.29818],"jac":[0.03382,0.01896,0.01869,0.02791,0.05825],"euc":[24.0624,24.1661,24.1039,24.1661,23.3452]},"word|tfidf":{"cos":[0.10512,0.06836,0.1242,0.12709,0.18128],"jac":[0.03382,0.01896,0.01869,0.02791,0.05825],"euc":[74.7372,75.4196,74.8302,74.8044,73.7495]},"stem|tf":{"cos":[0.30014,0.37208,0.24506,0.27274,0.35753],"jac":[0.05389,0.05988,0.04678,0.05848,0.07784],"euc":[28.9655,28.6705,29.0689,28.8791,28.4781]},"stem|tfidf":{"cos":[0.19281,0.294,0.26396,0.22624,0.20083],"jac":[0.05389,0.05988,0.04678,0.05848,0.07784],"euc":[82.7967,81.568,81.5443,82.1048,82.5861]},"bigram|tf":{"cos":[0.24916,0.36291,0.27034,0.35277,0.39209],"jac":[0.07619,0.075,0.0463,0.07764,0.09148],"euc":[39.4842,38.7685,39.3954,38.6394,38.1838]},"bigram|tfidf":{"cos":[0.17827,0.29435,0.26291,0.29286,0.25415],"jac":[0.07619,0.075,0.0463,0.07764,0.09148],"euc":[111.1301,109.0835,109.3685,108.5535,109.5413]}},"lens":{"word":[12,13,16,19,18],"stem":[12,13,16,19,18],"bigram":[29,33,28,39,42]}},{"y":2026,"q":10,"neg":false,"ans":5,"scope":"all","scores":{"word|tf":{"cos":[0.0742,0.15424,0.31996,0.01124,0.25858],"jac":[0.01141,0.02652,0.0229,0.00379,0.04183],"euc":[31.3688,31.0805,30.315,31.5436,30.5614]},"word|tfidf":{"cos":[0.04424,0.10867,0.22911,0.00972,0.20405],"jac":[0.01141,0.02652,0.0229,0.00379,0.04183],"euc":[107.5735,106.8869,105.0167,108.0185,105.2927]},"stem|tf":{"cos":[0.24205,0.29213,0.36591,0.04894,0.33478],"jac":[0.02765,0.03636,0.03687,0.01826,0.05936],"euc":[35.4683,35.0999,34.6843,36.0971,34.8138]},"stem|tfidf":{"cos":[0.15625,0.20252,0.29703,0.04851,0.28319],"jac":[0.02765,0.03636,0.03687,0.01826,0.05936],"euc":[115.8833,115.0464,113.8081,117.12,113.606]},"bigram|tf":{"cos":[0.20639,0.33998,0.35504,0.13909,0.29524],"jac":[0.02646,0.04775,0.03457,0.03412,0.0557],"euc":[46.7761,45.9674,45.6946,47.0956,46.1194]},"bigram|tfidf":{"cos":[0.15759,0.25541,0.30396,0.10094,0.25518],"jac":[0.02646,0.04775,0.03457,0.03412,0.0557],"euc":[140.1983,138.4977,137.307,140.9624,137.9866]}},"lens":{"word":[9,15,14,8,19],"stem":[9,15,14,8,19],"bigram":[18,25,24,22,29]}},{"y":2026,"q":11,"neg":true,"ans":3,"scope":"all","scores":{"word|tf":{"cos":[0.22259,0.11505,0.26991,0.15578,0.31919],"jac":[0.02308,0.01515,0.04198,0.02256,0.04167],"euc":[30.9192,31.241,30.5614,31.0644,30.2985]},"word|tfidf":{"cos":[0.17182,0.0666,0.20018,0.10777,0.28056],"jac":[0.02308,0.01515,0.04198,0.02256,0.04167],"euc":[106.1478,107.3562,105.4463,107.0132,104.018]},"stem|tf":{"cos":[0.33218,0.29212,0.3564,0.30858,0.44701],"jac":[0.03226,0.03196,0.05505,0.03636,0.05909],"euc":[35.242,35.2987,34.7563,34.7707,34.322]},"stem|tfidf":{"cos":[0.24991,0.2049,0.27937,0.23994,0.4016],"jac":[0.03226,0.03196,0.05505,0.03636,0.05909],"euc":[115.111,115.3545,113.8963,114.1605,111.7872]},"bigram|tf":{"cos":[0.30624,0.2589,0.3486,0.37121,0.31505],"jac":[0.03733,0.03675,0.05291,0.04222,0.05277],"euc":[46.422,46.5081,45.793,45.2769,46.0326]},"bigram|tfidf":{"cos":[0.25011,0.16814,0.28146,0.29162,0.33053],"jac":[0.03733,0.03675,0.05291,0.04222,0.05277],"euc":[139.1038,139.8844,137.9119,136.9504,136.8336]}},"lens":{"word":[9,11,17,18,19],"stem":[9,11,17,18,19],"bigram":[17,23,29,32,29]}},{"y":2026,"q":14,"neg":false,"ans":5,"scope":"all","scores":{"word|tf":{"cos":[0.04524,0.12564,0.12564,0.12312,0.12848],"jac":[0.01124,0.01498,0.02264,0.02632,0.01859],"euc":[27.074,26.8701,26.8701,26.8701,26.8514]},"word|tfidf":{"cos":[0.03242,0.11202,0.09271,0.07876,0.08577],"jac":[0.01124,0.01498,0.02264,0.02632,0.01859],"euc":[94.8895,94.1318,94.319,94.478,94.454]},"stem|tf":{"cos":[0.24454,0.29843,0.28814,0.15428,0.15498],"jac":[0.01942,0.02927,0.03431,0.04412,0.03883],"euc":[36.2077,36.0278,36.0555,36.3868,36.3731]},"stem|tfidf":{"cos":[0.23453,0.28169,0.24797,0.14067,0.14597],"jac":[0.01942,0.02927,0.03431,0.04412,0.03883],"euc":[112.3442,111.8723,112.3254,113.0674,112.9778]},"bigram|tf":{"cos":[0.31503,0.19666,0.32779,0.23959,0.21424],"jac":[0.03704,0.0288,0.0504,0.05836,0.04712],"euc":[61.1801,61.6279,61.0,61.3351,61.441]},"bigram|tfidf":{"cos":[0.26473,0.1778,0.25346,0.23364,0.17394],"jac":[0.03704,0.0288,0.0504,0.05836,0.04712],"euc":[155.192,156.0562,155.2716,155.1787,155.8751]}},"lens":{"word":[6,7,7,9,10],"stem":[6,7,7,9,10],"bigram":[15,16,19,22,23]}},{"y":2026,"q":15,"neg":false,"ans":1,"scope":"all","scores":{"word|tf":{"cos":[0.04265,0.17819,0.10244,0.1382,0.21935],"jac":[0.01099,0.0223,0.02214,0.02206,0.02985],"euc":[27.1477,26.6833,26.9444,26.8142,26.4953]},"word|tfidf":{"cos":[0.02354,0.14209,0.0864,0.10397,0.17239],"jac":[0.01099,0.0223,0.02214,0.02206,0.02985],"euc":[95.3351,93.7718,94.4577,94.2816,93.3645]},"stem|tf":{"cos":[0.05502,0.3612,0.09062,0.26924,0.29982],"jac":[0.01887,0.03365,0.03333,0.04306,0.03883],"euc":[36.7015,35.6651,36.5787,35.9026,35.6651]},"stem|tfidf":{"cos":[0.03875,0.28589,0.07553,0.24135,0.27371],"jac":[0.01887,0.03365,0.03333,0.04306,0.03883],"euc":[114.1703,111.2951,113.6767,111.7264,111.1199]},"bigram|tf":{"cos":[0.1198,0.31801,0.15402,0.27199,0.38262],"jac":[0.01786,0.04167,0.03636,0.03618,0.04427],"euc":[61.9032,60.9344,61.7414,61.1392,60.2495]},"bigram|tfidf":{"cos":[0.04315,0.24731,0.12252,0.23827,0.25484],"jac":[0.01786,0.04167,0.03636,0.03618,0.04427],"euc":[157.8619,154.7513,156.6352,154.9532,154.296]}},"lens":{"word":[12,11,13,14,13],"stem":[12,11,13,14,13],"bigram":[22,23,22,24,28]}},{"y":2025,"q":4,"neg":true,"ans":4,"scope":"가+나","scores":{"word|tf":{"cos":[0.1507,0.04186,0.06698,0.08817,0.24644],"jac":[0.01316,0.01094,0.01094,0.01092,0.01532],"euc":[35.6651,36.0278,35.9444,35.8748,35.2987]},"word|tfidf":{"cos":[0.12142,0.03508,0.05602,0.07403,0.18133],"jac":[0.01316,0.01094,0.01094,0.01092,0.01532],"euc":[126.8734,127.947,127.7355,127.4968,126.0532]},"stem|tf":{"cos":[0.33612,0.11863,0.2109,0.22085,0.37587],"jac":[0.02111,0.02381,0.01842,0.02375,0.02639],"euc":[44.7437,45.4753,45.1664,45.111,44.5197]},"stem|tfidf":{"cos":[0.28138,0.09744,0.15281,0.18084,0.32942],"jac":[0.02111,0.02381,0.01842,0.02375,0.02639],"euc":[146.4278,148.5817,147.8687,147.566,145.754]},"bigram|tf":{"cos":[0.27305,0.19876,0.15079,0.19809,0.31931],"jac":[0.02276,0.03414,0.02266,0.02405,0.02841],"euc":[65.2304,65.4752,65.7723,65.5134,64.8845]},"bigram|tfidf":{"cos":[0.22032,0.11772,0.11697,0.13889,0.25386],"jac":[0.02276,0.03414,0.02266,0.02405,0.02841],"euc":[195.159,196.7561,196.7548,196.4077,194.6512]}},"lens":{"word":[11,11,11,12,13],"stem":[11,11,11,12,13],"bigram":[21,29,24,26,26]}},{"y":2025,"q":5,"neg":true,"ans":5,"scope":"가","scores":{"word|tf":{"cos":[0.21514,0.34345,0.24111,0.28284,0.19124],"jac":[0.01154,0.04297,0.03101,0.02692,0.01938],"euc":[25.9615,25.4165,25.8263,25.6515,26.0384]},"word|tfidf":{"cos":[0.12508,0.27798,0.16485,0.17118,0.13224],"jac":[0.01154,0.04297,0.03101,0.02692,0.01938],"euc":[88.2161,86.1295,87.6797,87.5849,88.1055]},"stem|tf":{"cos":[0.25384,0.43764,0.38135,0.40938,0.32491],"jac":[0.02222,0.05405,0.04036,0.03556,0.02679],"euc":[30.4959,29.6985,29.8831,29.7321,30.2655]},"stem|tfidf":{"cos":[0.15915,0.37028,0.27323,0.2675,0.23462],"jac":[0.02222,0.05405,0.04036,0.03556,0.02679],"euc":[96.8673,94.1538,95.3184,95.3024,95.9844]},"bigram|tf":{"cos":[0.2654,0.3165,0.35015,0.38679,0.26196],"jac":[0.02791,0.04684,0.03963,0.04884,0.0348],"euc":[41.7732,41.4246,41.0974,40.8779,41.7253]},"bigram|tfidf":{"cos":[0.19486,0.29737,0.30167,0.29088,0.1894],"jac":[0.02791,0.04684,0.03963,0.04884,0.0348],"euc":[124.0338,122.3883,121.9437,122.0514,123.9971]}},"lens":{"word":[10,14,13,14,10],"stem":[10,14,13,14,10],"bigram":[21,26,27,31,25]}},{"y":2025,"q":11,"neg":false,"ans":1,"scope":"all","scores":{"word|tf":{"cos":[0.25129,0.16683,0.41716,0.2709,0.17712],"jac":[0.01395,0.0186,0.02778,0.02791,0.01818],"euc":[38.6523,38.8201,38.0,38.4838,38.704]},"word|tfidf":{"cos":[0.17208,0.11925,0.30882,0.20826,0.1214],"jac":[0.01395,0.0186,0.02778,0.02791,0.01818],"euc":[128.6635,129.1281,127.0637,128.1156,128.9479]},"stem|tf":{"cos":[0.36664,0.17379,0.66551,0.5235,0.44165],"jac":[0.02424,0.0241,0.04242,0.03636,0.03571],"euc":[62.6418,63.0476,61.2699,61.8304,61.9193]},"stem|tfidf":{"cos":[0.28152,0.15264,0.61288,0.45725,0.34187],"jac":[0.02424,0.0241,0.04242,0.03636,0.03571],"euc":[168.8905,169.9547,165.4297,166.7576,167.2017]},"bigram|tf":{"cos":[0.42508,0.18937,0.68514,0.5165,0.3893],"jac":[0.04392,0.03,0.04377,0.04698,0.04221],"euc":[95.2943,96.0781,93.7443,94.2921,94.6784]},"bigram|tfidf":{"cos":[0.35162,0.1524,0.60337,0.47098,0.29762],"jac":[0.04392,0.03,0.04377,0.04698,0.04221],"euc":[253.9678,255.9514,250.0328,250.7804,252.4399]}},"lens":{"word":[5,6,9,8,11],"stem":[5,6,9,8,11],"bigram":[14,16,17,20,29]}},{"y":2025,"q":12,"neg":true,"ans":5,"scope":"all","scores":{"word|tf":{"cos":[0.26392,0.14448,0.1873,0.15483,0.37734],"jac":[0.03738,0.02315,0.02304,0.03211,0.03704],"euc":[38.4708,38.8458,38.704,38.7685,38.0263]},"word|tfidf":{"cos":[0.17685,0.11258,0.12377,0.14236,0.28709],"jac":[0.03738,0.02315,0.02304,0.03211,0.03704],"euc":[128.5655,129.1467,128.9988,128.7076,127.0125]},"stem|tf":{"cos":[0.31532,0.37347,0.21022,0.42782,0.68652],"jac":[0.04848,0.03614,0.04848,0.05389,0.04819],"euc":[62.546,62.426,62.8649,62.0242,61.0082]},"stem|tfidf":{"cos":[0.24341,0.27825,0.20482,0.32538,0.59963],"jac":[0.04848,0.03614,0.04848,0.05389,0.04819],"euc":[169.0837,168.6789,169.3879,167.6611,164.7598]},"bigram|tf":{"cos":[0.31311,0.3695,0.16532,0.42209,0.6233],"jac":[0.05405,0.04348,0.04698,0.05298,0.06355],"euc":[95.6138,95.2628,96.2289,94.8999,93.5628]},"bigram|tfidf":{"cos":[0.26422,0.33126,0.15247,0.34726,0.54623],"jac":[0.05405,0.04348,0.04698,0.05298,0.06355],"euc":[254.7507,253.8161,256.0097,252.6766,249.2341]}},"lens":{"word":[9,8,9,12,11],"stem":[9,8,9,12,11],"bigram":[17,18,17,23,25]}},{"y":2025,"q":14,"neg":true,"ans":1,"scope":"all","scores":{"word|tf":{"cos":[0.09588,0.20241,0.2856,0.28281,0.26441],"jac":[0.02008,0.02419,0.02823,0.0241,0.02419],"euc":[28.178,27.8209,27.5136,27.4591,27.55]},"word|tfidf":{"cos":[0.10462,0.1541,0.17388,0.21904,0.19788],"jac":[0.02008,0.02419,0.02823,0.0241,0.02419],"euc":[88.4648,87.8409,87.6289,86.9459,87.2468]},"stem|tf":{"cos":[0.14182,0.26473,0.31682,0.36505,0.30573],"jac":[0.03302,0.03791,0.04762,0.03302,0.03318],"euc":[31.5911,31.1769,30.9677,30.6268,30.9031]},"stem|tfidf":{"cos":[0.1575,0.21674,0.23281,0.30502,0.23454],"jac":[0.03302,0.03791,0.04762,0.03302,0.03318],"euc":[95.8202,95.1288,95.0691,93.8361,94.7905]},"bigram|tf":{"cos":[0.20591,0.345,0.31215,0.33817,0.45804],"jac":[0.04738,0.05237,0.04975,0.04703,0.04455],"euc":[48.949,48.2286,48.3942,48.0416,47.0319]},"bigram|tfidf":{"cos":[0.17887,0.23252,0.18555,0.23681,0.29225],"jac":[0.04738,0.05237,0.04975,0.04703,0.04455],"euc":[132.0392,131.2808,132.0288,131.0677,130.0506]}},"lens":{"word":[11,11,12,13,12],"stem":[11,11,12,13,12],"bigram":[22,24,24,28,30]}},{"y":2025,"q":15,"neg":false,"ans":2,"scope":"all","scores":{"word|tf":{"cos":[0.12291,0.25544,0.17667,0.24499,0.23464],"jac":[0.01606,0.02,0.024,0.024,0.01606],"euc":[28.0891,27.5681,27.8747,27.6405,27.7308]},"word|tfidf":{"cos":[0.09831,0.17241,0.13653,0.19749,0.19063],"jac":[0.01606,0.02,0.024,0.024,0.01606],"euc":[88.484,87.6123,88.0678,87.2721,87.5026]},"stem|tf":{"cos":[0.14874,0.31942,0.28086,0.32179,0.36689],"jac":[0.01869,0.03791,0.04265,0.03271,0.02347],"euc":[31.5753,30.8221,30.9677,30.9192,30.8707]},"stem|tfidf":{"cos":[0.10967,0.28782,0.24398,0.26613,0.35411],"jac":[0.01869,0.03791,0.04265,0.03271,0.02347],"euc":[96.3804,94.2607,94.8059,94.4606,94.1347]},"bigram|tf":{"cos":[0.1897,0.26719,0.41972,0.34223,0.32774],"jac":[0.02463,0.02948,0.03951,0.05185,0.02457],"euc":[49.0714,48.5695,47.6025,48.1456,48.4458]},"bigram|tfidf":{"cos":[0.11608,0.26849,0.32628,0.32514,0.29603],"jac":[0.02463,0.02948,0.03951,0.05185,0.02457],"euc":[133.0513,130.6471,129.8899,129.988,130.7426]}},"lens":{"word":[10,13,14,13,10],"stem":[10,13,14,13,10],"bigram":[18,23,26,28,19]}},{"y":2024,"q":4,"neg":false,"ans":5,"scope":"all","scores":{"word|tf":{"cos":[0.111,0.0,0.01298,0.04644,0.03671],"jac":[0.00332,0.0,0.00331,0.00993,0.00997],"euc":[27.074,27.3313,27.3496,27.2764,27.2947]},"word|tfidf":{"cos":[0.07212,0.0,0.01214,0.03894,0.03357],"jac":[0.00332,0.0,0.00331,0.00993,0.00997],"euc":[89.45,90.2088,90.2314,90.037,90.0833]},"stem|tf":{"cos":[0.14788,0.0,0.03192,0.31407,0.18149],"jac":[0.00385,0.0,0.01158,0.01931,0.0155],"euc":[32.9393,33.3017,33.2566,32.3728,32.7872]},"stem|tfidf":{"cos":[0.07897,0.0,0.03098,0.2626,0.12073],"jac":[0.00385,0.0,0.01158,0.01931,0.0155],"euc":[101.9806,102.8175,102.5142,99.9065,101.5353]},"bigram|tf":{"cos":[0.09735,0.06535,0.03407,0.31152,0.201],"jac":[0.00214,0.01282,0.01064,0.02151,0.02151],"euc":[51.1273,51.2543,51.3809,50.2593,50.6656]},"bigram|tfidf":{"cos":[0.05899,0.05901,0.02646,0.25106,0.15596],"jac":[0.00214,0.01282,0.01064,0.02151,0.02151],"euc":[148.7124,148.7437,149.2038,146.1225,147.2678]}},"lens":{"word":[7,5,8,10,9],"stem":[7,5,8,10,9],"bigram":[12,15,16,16,17]}},{"y":2024,"q":5,"neg":true,"ans":3,"scope":"all","scores":{"word|tf":{"cos":[0.32582,0.39709,0.11657,0.30332,0.23862],"jac":[0.02349,0.02667,0.01656,0.03679,0.0264],"euc":[26.2869,26.0192,27.0555,26.3249,26.5707]},"word|tfidf":{"cos":[0.10759,0.23568,0.04593,0.15197,0.13889],"jac":[0.02349,0.02667,0.01656,0.03679,0.0264],"euc":[89.0917,87.4276,89.9768,88.5585,88.7644]},"stem|tf":{"cos":[0.4424,0.49249,0.13901,0.39631,0.34611],"jac":[0.03125,0.03488,0.02703,0.0549,0.03846],"euc":[31.7962,31.607,32.9242,31.8904,32.0624]},"stem|tfidf":{"cos":[0.23442,0.33108,0.07739,0.27295,0.22474],"jac":[0.03125,0.03488,0.02703,0.0549,0.03846],"euc":[100.3702,98.8511,102.0632,99.7328,100.0976]},"bigram|tf":{"cos":[0.38947,0.41637,0.16112,0.44153,0.39654],"jac":[0.04329,0.03226,0.04069,0.04989,0.05161],"euc":[49.5984,49.6286,50.7839,49.2544,49.366]},"bigram|tfidf":{"cos":[0.30501,0.33286,0.09767,0.36483,0.33374],"jac":[0.04329,0.03226,0.04069,0.04989,0.05161],"euc":[144.9729,144.3962,148.1834,143.8931,144.1763]}},"lens":{"word":[11,13,12,15,16],"stem":[11,13,12,15,16],"bigram":[24,21,27,26,31]}},{"y":2024,"q":8,"neg":true,"ans":3,"scope":"all","scores":{"word|tf":{"cos":[0.14585,0.13259,0.06124,0.18092,0.16961],"jac":[0.02252,0.01794,0.00897,0.02679,0.02222],"euc":[26.4008,26.4386,26.6271,26.2679,26.3059]},"word|tfidf":{"cos":[0.05163,0.11303,0.0406,0.09684,0.07474],"jac":[0.02252,0.01794,0.00897,0.02679,0.02222],"euc":[92.0453,91.4177,92.1193,91.6135,91.9078]},"stem|tf":{"cos":[0.30247,0.25369,0.29293,0.32452,0.30787],"jac":[0.02762,0.02762,0.01099,0.03846,0.03846],"euc":[35.4824,35.623,35.5949,35.2987,35.3553]},"stem|tfidf":{"cos":[0.14152,0.15829,0.12862,0.18693,0.13397],"jac":[0.02762,0.02762,0.01099,0.03846,0.03846],"euc":[114.2641,114.1081,114.3957,113.7322,114.2401]},"bigram|tf":{"cos":[0.30093,0.30542,0.36854,0.43825,0.37069],"jac":[0.03165,0.03481,0.04101,0.05397,0.0538],"euc":[52.9339,52.8867,52.5167,52.1153,52.4118]},"bigram|tfidf":{"cos":[0.20379,0.21085,0.27271,0.3388,0.22503],"jac":[0.03165,0.03481,0.04101,0.05397,0.0538],"euc":[141.834,141.5443,141.054,139.6208,141.1973]}},"lens":{"word":[8,8,6,11,11],"stem":[8,8,6,11,11],"bigram":[16,17,20,22,23]}},{"y":2024,"q":9,"neg":false,"ans":1,"scope":"all","scores":{"word|tf":{"cos":[0.0663,0.11251,0.13751,0.07116,0.11491],"jac":[0.00442,0.01786,0.00885,0.01327,0.02183],"euc":[26.6271,26.4953,26.4197,26.6271,26.5141]},"word|tfidf":{"cos":[0.01799,0.08403,0.11126,0.05323,0.08321],"jac":[0.00442,0.01786,0.00885,0.01327,0.02183],"euc":[92.467,91.736,91.4627,92.1335,91.9918]},"stem|tf":{"cos":[0.16587,0.31277,0.31277,0.15709,0.37728],"jac":[0.01639,0.02186,0.02186,0.02732,0.03763],"euc":[35.8748,35.4119,35.4119,35.8748,34.8569]},"stem|tfidf":{"cos":[0.08813,0.16428,0.16964,0.10552,0.21188],"jac":[0.01639,0.02186,0.02186,0.02732,0.03763],"euc":[114.7624,113.9943,113.8562,114.5763,113.1218]},"bigram|tf":{"cos":[0.20833,0.38924,0.3196,0.25485,0.43915],"jac":[0.02194,0.04101,0.03416,0.05047,0.05937],"euc":[53.3104,52.4214,52.5928,52.9811,51.3128]},"bigram|tfidf":{"cos":[0.13484,0.26244,0.19268,0.18375,0.32949],"jac":[0.02194,0.04101,0.03416,0.05047,0.05937],"euc":[142.5287,140.7356,141.3691,141.8017,138.6673]}},"lens":{"word":[8,9,9,10,16],"stem":[8,9,9,10,16],"bigram":[16,20,24,23,35]}},{"y":2024,"q":13,"neg":true,"ans":1,"scope":"가","scores":{"word|tf":{"cos":[0.1286,0.09645,0.10675,0.18097,0.18725],"jac":[0.02041,0.0101,0.0203,0.03046,0.04615],"euc":[20.567,20.664,20.6398,20.3961,20.3715]},"word|tfidf":{"cos":[0.08178,0.02115,0.06561,0.11309,0.1688],"jac":[0.02041,0.0101,0.0203,0.03046,0.04615],"euc":[77.051,77.8022,77.3761,76.7743,76.0259]},"stem|tf":{"cos":[0.21969,0.14646,0.15284,0.20294,0.25591],"jac":[0.04118,0.01724,0.03488,0.03448,0.05848],"euc":[22.2935,22.5167,22.4944,22.3159,22.1133]},"stem|tfidf":{"cos":[0.16544,0.04767,0.10146,0.10567,0.22949],"jac":[0.04118,0.01724,0.03488,0.03448,0.05848],"euc":[80.5873,81.8822,81.2931,81.276,79.6844]},"bigram|tf":{"cos":[0.17575,0.1611,0.16577,0.16777,0.26809],"jac":[0.03514,0.02532,0.04194,0.03438,0.0641],"euc":[31.7175,31.7805,31.7648,31.7333,31.209]},"bigram|tfidf":{"cos":[0.12688,0.05662,0.11548,0.08631,0.19516],"jac":[0.03514,0.02532,0.04194,0.03438,0.0641],"euc":[102.2443,103.267,102.3944,103.0351,101.1616]}},"lens":{"word":[9,9,10,12,13],"stem":[9,9,10,12,13],"bigram":[18,18,17,25,26]}},{"y":2024,"q":14,"neg":false,"ans":4,"scope":"나","scores":{"word|tf":{"cos":[0.29151,0.2532,0.20306,0.1524,0.03895],"jac":[0.01792,0.02158,0.02151,0.02143,0.01056],"euc":[29.6648,29.9333,30.1993,30.4467,31.0161]},"word|tfidf":{"cos":[0.19357,0.17853,0.13084,0.10127,0.03056],"jac":[0.01792,0.02158,0.02151,0.02143,0.01056],"euc":[104.6889,104.9912,105.8593,106.471,107.7141]},"stem|tf":{"cos":[0.32082,0.34144,0.26098,0.28583,0.10844],"jac":[0.02033,0.02449,0.02429,0.03265,0.01594],"euc":[32.311,32.28,32.7719,32.6037,33.5559]},"stem|tfidf":{"cos":[0.21801,0.27564,0.17269,0.19767,0.06751],"jac":[0.02033,0.02449,0.02429,0.03265,0.01594],"euc":[108.4436,107.6289,109.3474,108.8532,111.1875]},"bigram|tf":{"cos":[0.30664,0.31765,0.2707,0.28761,0.20983],"jac":[0.02941,0.04063,0.04036,0.03812,0.03341],"euc":[47.0425,46.9894,47.3498,47.2017,47.7912]},"bigram|tfidf":{"cos":[0.20288,0.25542,0.18184,0.17783,0.12569],"jac":[0.02941,0.04063,0.04036,0.03812,0.03341],"euc":[141.8955,140.9521,142.3904,142.4818,143.7032]}},"lens":{"word":[23,21,21,22,23],"stem":[23,21,21,22,23],"bigram":[42,45,47,47,49]}}];
+function evaluateReal(mode,weight){
+  const key=mode+'|'+weight;
+  const per=REAL.map(r=>{
+    const scores=r.scores[key],lens=r.lens[mode],ans=r.ans-1,judge={};
+    for(const m of MEASURES)judge[m.key]=judgeOne(scores[m.key],ans,m.higher!==r.neg);
+    return {id:r.y+'-'+r.q,p:{title:r.y+'학년도 수능 국어 '+r.q+'번',neg:r.neg},real:true,scope:r.scope,scores,lens,judge,ans};
+  });
+  const n=per.length,total={};
+  for(const m of MEASURES){
+    let credit=0,rank=0,cl=0;
+    for(const e of per){const j=e.judge[m.key];credit+=j.credit;rank+=j.rank;cl+=mean(j.picks.map(i=>e.lens[i]));}
+    total[m.key]={credit,rank:rank/n,chosenLen:cl/n};
+  }
+  return {n,per,total,mode,weight,
+    correctLen:mean(per.map(e=>e.lens[e.ans])),
+    optLen:mean(per.reduce((a,e)=>a.concat(e.lens),[]))};
+}
+let REALTEXT=null;
+const evalNow=(m,w)=>state.data==='real'?evaluateReal(m,w):evaluate(m,w);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN=v=>Number.isInteger(v)?String(v):(Math.round(v*10)/10).toFixed(1);
+const modeName=m=>MODES.find(x=>x[0]===m)[1];
+const weightName=w=>WEIGHTS.find(x=>x[0]===w)[1];
+const unitName=m=>m==='bigram'?'글자 조각':'낱말';
+const HINTS={
+  word:'예: 「도서관에서 책을」 → 도서관에서 / 책을',
+  stem:'예: 「도서관에서 책을」 → 도서관 / 책을 (끝의 조사를 간단한 규칙으로 뗀다)',
+  bigram:'예: 「도서관에서 책을」 → 도서 / 서관 / 관에 / 에서 / 책을 (어절 안에서 두 글자씩 자른다)'
+};
+
+function loadCustom(){
+  try{const r=localStorage.getItem('sim-custom-v1');if(r){const a=JSON.parse(r);if(Array.isArray(a))return a;}}catch(e){}
+  return [];
+}
+function saveCustom(){try{localStorage.setItem('sim-custom-v1',JSON.stringify(custom));}catch(e){}}
+
+function renderSettings(){
+  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode)));
+  document.querySelectorAll('[data-weight]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.weight===state.weight)));
+  document.querySelectorAll('[data-data]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.data===state.data)));
+  $('modeHint').textContent=HINTS[state.mode];
+  const real=state.data==='real';
+  $('dataHint').textContent=real
+    ?'2024~2026학년도 수능 국어 독서 지문에서 고른 18문항이다. ‘적절하지 않은(일치하지 않는) 것’을 찾는 9문항은 지문과 가장 덜 비슷한 선지를 고르게 했다.'
+    :'아래에서 내가 넣은 문제만 계산한다. 넣은 내용은 이 브라우저 안에서만 처리된다.';
+  $('loadBox').style.display=real?'':'none';
+  $('custom').style.display=real?'none':'';
+}
+
+function renderResults(ev){
+  const rows=MEASURES.map(m=>{
+    const t=ev.total[m.key],pct=t.credit/ev.n*100;
+    return `<div class="bar-row m-${m.key}">
+      <div class="bar-name">${m.name}</div>
+      <div class="bar-track" role="img" aria-label="${m.name} 정답률 ${pct.toFixed(0)}퍼센트"><div class="bar-fill" style="width:${pct}%"></div><div class="chance"></div></div>
+      <div class="bar-val"><b>${fmtN(t.credit)}</b> / ${ev.n}문항 (${pct.toFixed(0)}%)<span>정답 선지의 평균 순위 ${t.rank.toFixed(1)}위 · 고른 선지 평균 길이 ${t.chosenLen.toFixed(1)}</span></div>
+    </div>`;
+  }).join('');
+  $('bars').innerHTML=rows;
+  const best=Math.max(...MEASURES.map(m=>ev.total[m.key].credit));
+  const winners=MEASURES.filter(m=>Math.abs(ev.total[m.key].credit-best)<1e-9).map(m=>m.name);
+  renderTypeSplit(ev);
+  $('autoLine').innerHTML=`이 설정에서는 <b>${winners.join(', ')}</b>이(가) 가장 많이 맞혔다. 정답 선지의 평균 길이는 ${ev.correctLen.toFixed(1)}${unitName(ev.mode)}, 다섯 선지 전체의 평균 길이는 ${ev.optLen.toFixed(1)}${unitName(ev.mode)}이다.`;
+}
+
+function renderTypeSplit(ev){
+  const box=$('typeSplit');
+  const nNeg=ev.per.filter(e=>e.p.neg).length,nPos=ev.per.length-nNeg;
+  if(!nNeg||!nPos){box.innerHTML='';return;}
+  let h='<div class="tablewrap"><table><thead><tr><th>문제 유형별 정답 문항 수</th><th class="num c-cos">코사인</th><th class="num c-jac">자카드</th><th class="num c-euc">유클리드</th></tr></thead><tbody>';
+  for(const [label,flag,n] of [['적절한(일치하는) 것을 찾는 문제',false,nPos],['적절하지 않은(일치하지 않는) 것을 찾는 문제',true,nNeg]]){
+    h+='<tr><td>'+label+' '+n+'문항</td>'+MEASURES.map(m=>{
+      const c=ev.per.filter(e=>!!e.p.neg===flag).reduce((a,e)=>a+e.judge[m.key].credit,0);
+      return '<td class="num">'+fmtN(c)+' / '+n+'</td>';
+    }).join('')+'</tr>';
+  }
+  box.innerHTML=h+'</tbody></table></div>';
+}
+
+function renderMatrix(){
+  let h='<thead><tr><th>낱말 나누기</th><th>벡터의 값</th><th class="num c-cos">코사인</th><th class="num c-jac">자카드</th><th class="num c-euc">유클리드</th><th></th></tr></thead><tbody>';
+  for(const [md,mn] of MODES)for(const [wt,wn] of WEIGHTS){
+    const e=evalNow(md,wt),best=Math.max(...MEASURES.map(m=>e.total[m.key].credit));
+    const now=md===state.mode&&wt===state.weight;
+    h+=`<tr class="${now?'now':''}"><td>${mn}</td><td>${wn}</td>`+
+      MEASURES.map(m=>{const c=e.total[m.key].credit;return `<td class="num ${Math.abs(c-best)<1e-9?'best':''}">${fmtN(c)} / ${e.n}</td>`;}).join('')+
+      `<td>${now?'보는 중':`<button type="button" data-apply="${md}|${wt}">적용</button>`}</td></tr>`;
+  }
+  $('matrixTable').innerHTML=h+'</tbody>';
+}
+
+function sharedText(tx,i){
+  const a=new Set(tokens(tx.passage,state.mode)),seen=new Set(),out=[];
+  for(const k of tokens(tx.options[i],state.mode))if(a.has(k)&&!seen.has(k)){seen.add(k);out.push(k);}
+  return out;
+}
+function sharedList(e,i){
+  const a=e.maps[0],b=e.maps[i+1],out=[];
+  for(const k of b.keys())if(a.has(k))out.push(k);
+  return out;
+}
+
+function problemHTML(e,idx){
+  const real=!!e.real;
+  const tx=real&&REALTEXT?REALTEXT[e.id]:null;
+  const chips=MEASURES.map(m=>{
+    const c=e.judge[m.key].credit,sym=c>=1?'○':(c>0?'△':'×');
+    return `<span class="chip c-${m.key} ${c>0?'hit':''}" title="${m.name}: ${c>=1?'맞힘':(c>0?'동점':'놓침')}">${m.short} ${sym}</span>`;
+  }).join('')+(e.p.neg?'<span class="chip negtag">적절하지 않은 것</span>':'');
+  const isCustom=!real&&idx>=BASE.length;
+  let rows='';
+  for(let i=0;i<5;i++){
+    const cells=MEASURES.map(m=>{
+      const picked=e.judge[m.key].picks.includes(i);
+      return `<td class="num cell-${m.key} ${picked?'pick':''}">${m.fmt(e.scores[m.key][i])}${picked?'<span class="pk">선택</span>':''}</td>`;
+    }).join('');
+    if(real){
+      if(tx){
+        const sh=sharedText(tx,i);
+        rows+=`<tr class="${i===e.ans?'correct':''}"><td class="opt"><span class="optnum">${CIRC[i]}</span>${esc(tx.options[i])}${i===e.ans?'<span class="tag">정답</span>':''}
+        <div class="shared">지문과 겹친 ${unitName(state.mode)} ${sh.length}개${sh.length?': '+esc(sh.slice(0,8).join(', '))+(sh.length>8?' …':''):''}</div></td>${cells}</tr>`;
+      }else{
+        rows+=`<tr class="${i===e.ans?'correct':''}"><td class="opt"><span class="optnum">${CIRC[i]}</span>${i===e.ans?'<span class="tag">정답</span>':''}<div class="shared">선지 길이 ${e.lens[i]}${unitName(state.mode)}</div></td>${cells}</tr>`;
+      }
+    }else{
+      const sh=sharedList(e,i);
+      rows+=`<tr class="${i===e.ans?'correct':''}"><td class="opt"><span class="optnum">${CIRC[i]}</span>${esc(e.p.options[i])}${i===e.ans?'<span class="tag">정답</span>':''}
+      <div class="shared">지문과 겹친 ${unitName(state.mode)} ${sh.length}개${sh.length?': '+esc(sh.slice(0,8).join(', '))+(sh.length>8?' …':''):''}</div></td>${cells}</tr>`;
+    }
+  }
+  const head=tx
+    ?`<p class="small" style="margin:0 16px 12px">불러온 파일의 원문이며 이 브라우저 안에서만 표시된다.${e.p.neg?' ‘적절하지 않은 것’을 고르는 문제라서 지문과 가장 덜 비슷한 선지를 고르게 했다.':''}</p><div class="passage">${esc(tx.passage)}</div>`
+    :real
+    ?`<p class="small" style="margin:0 16px 12px">저작권 때문에 지문과 선지는 싣지 않고 계산 결과만 보여 준다. 원문을 보려면 위의 ‘원문 불러오기’에서 파일을 연다. 사용한 지문 범위: ${e.scope==='all'?'해당 문항의 지문 전체':(e.scope==='가+나'?'(가)와 (나) 모두':'('+e.scope+')만')}.${e.p.neg?' ‘적절하지 않은 것’을 고르는 문제라서 지문과 가장 덜 비슷한 선지(유클리드 거리는 가장 먼 선지)를 고르게 했다.':''}</p>`
+    :`<div class="passage">${esc(e.p.passage)}</div>`;
+  return `<details class="prob"><summary><span class="ptitle">${esc(e.p.title)}</span>${chips}</summary>
+    <div class="pbody">${head}
+    <div class="tablewrap ptable"><table><thead><tr><th>선지</th><th class="num c-cos">코사인</th><th class="num c-jac">자카드</th><th class="num c-euc">유클리드 거리</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${isCustom?`<button type="button" class="del" data-del="${idx-BASE.length}">이 문제 삭제</button>`:''}</div></details>`;
+}
+function renderProblems(ev){
+  $('probList').innerHTML=ev.per.map((e,i)=>problemHTML(e,i)).join('');
+}
+
+function render(){
+  if(state.data==='own'&&!allProblems().length){
+    renderSettings();
+    $('bars').innerHTML='<p class="small">아직 넣은 문제가 없다. 아래 ‘내 문제 넣어 보기’에서 문제를 추가한다.</p>';
+    $('typeSplit').innerHTML='';$('autoLine').textContent='문제를 넣으면 결과가 여기에 나온다.';
+    $('matrixTable').innerHTML='';$('probList').innerHTML='';
+    return;
+  }
+  const ev=evalNow(state.mode,state.weight);
+  renderSettings();renderResults(ev);renderMatrix();
+  const open=new Set([...document.querySelectorAll('details.prob[open]')].map(d=>d.querySelector('.ptitle').textContent));
+  renderProblems(ev);
+  document.querySelectorAll('details.prob').forEach(d=>{if(open.has(d.querySelector('.ptitle').textContent))d.open=true;});
+}
+
+document.addEventListener('click',async ev=>{
+  const t=ev.target.closest('button');if(!t)return;
+  if(t.dataset.data){state.data=t.dataset.data;render();}
+  else if(t.dataset.mode){state.mode=t.dataset.mode;render();}
+  else if(t.dataset.weight){state.weight=t.dataset.weight;render();}
+  else if(t.dataset.apply){const [m,w]=t.dataset.apply.split('|');state.mode=m;state.weight=w;render();}
+  else if(t.dataset.del!==undefined){custom.splice(Number(t.dataset.del),1);saveCustom();render();}
+  else if(t.id==='addBtn'){addProblem();}
+  else if(t.id==='dlScript'){downloadScript();}
+  else if(t.id==='clearText'){REALTEXT=null;try{localStorage.removeItem('kice-items-v1');}catch(e){}$('loadMsg').className='msg';$('loadMsg').textContent='저장된 원문을 지웠다.';$('itemFile').value='';render();}
+});
+
+document.addEventListener('change',ev=>{
+  if(ev.target.id!=='itemFile')return;
+  const f=ev.target.files[0],msg=$('loadMsg');if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const arr=JSON.parse(r.result);
+      if(!Array.isArray(arr))throw new Error('형식');
+      const map={};let n=0;
+      for(const it of arr)if(it&&typeof it.id==='string'&&typeof it.passage==='string'&&Array.isArray(it.options)&&it.options.length===5){map[it.id]=it;n++;}
+      if(!n)throw new Error('문항');
+      REALTEXT=map;msg.className='msg';msg.textContent=n+'개 문항의 원문을 불러왔다. 이 브라우저 안에서만 표시되고 어디로도 전송되지 않는다.';
+      try{localStorage.setItem('kice-items-v1',JSON.stringify(map));msg.textContent+=' 다음에 열 때도 자동으로 적용된다.';}catch(e2){msg.textContent+=' (이 브라우저에는 저장하지 못했다.)';}
+    }catch(e){
+      REALTEXT=null;msg.className='msg err';msg.textContent='불러오지 못했다. kice_extract.py로 만든 kice_items.json 파일인지 확인한다.';
+    }
+    render();
+  };
+  r.readAsText(f,'utf-8');
+});
+
+function addProblem(){
+  const msg=$('addMsg');msg.className='msg';
+  const passage=$('cPassage').value.trim();
+  const lines=[0,1,2,3,4].map(i=>$('opt'+i).value.trim().replace(/^([①-⑤]|[1-5][.)])\s*/,''));
+  if(passage.length<30){msg.className='msg err';msg.textContent='지문이 너무 짧다. 30자 이상 넣는다.';return;}
+  const empty=lines.map((v,i)=>v?0:i+1).filter(Boolean);
+  if(empty.length){msg.className='msg err';msg.textContent='비어 있는 선지가 있다: '+empty.join(', ')+'번';return;}
+  custom.push({title:'직접 넣은 문제 '+(custom.length+1),passage,options:lines,answer:Number($('cAnswer').value),neg:$('cNeg').checked});
+  saveCustom();
+  $('cPassage').value='';[0,1,2,3,4].forEach(i=>{$('opt'+i).value='';});$('cNeg').checked=false;
+  msg.textContent='추가했다. 위의 결과와 문항 목록에 반영됐다.';
+  render();
+}
+
+const REPO='NEMNEM07/similarity-lab';
+const SCRIPT_TEXT="\"\"\"\n기출 문제지 PDF에서 실험에 쓴 18개 문항의 지문과 선지를 뽑아 JSON 파일로 저장한다.\n\n사용법 (PDF가 들어 있는 폴더에서 실행):\n    pip install pdfplumber\n    python kice_extract.py --dir . --out kice_items.json\n\n- 문제지 PDF 파일 이름은 '2024...문제...pdf', '2025...문제...pdf', '2026...문제...pdf' 처럼\n  학년도로 시작하고 '문제'가 들어 있어야 한다. (해설 PDF는 쓰지 않는다.)\n- 페이지 파일(저장소의 index.html)을 함께 주면 원문이 들어 있는 내 컴퓨터용 페이지를 바로 만든다:\n    python kice_extract.py --dir . --page index.html --html-out similarity-lab-원문.html\n  만들어진 html을 더블클릭해서 열면 지문과 선지가 처음부터 텍스트로 보인다.\n- 만들어진 파일에는 기출 원문이 들어 있으므로 내 컴퓨터에만 두고\n  인터넷에 올리거나 다른 사람에게 배포하지 않는다.\n  웹 페이지의 '원문 불러오기'로 열면 이 브라우저 안에서만 표시된다.\n\"\"\"\nimport argparse\nimport json\nimport os\nimport re\nimport sys\nimport unicodedata\n\nimport pdfplumber\n\n# 실험에 쓴 문항 번호, 정답 번호(홀수형), 적절하지 않은(일치하지 않는) 것을 찾는 문항\nSEL = {2026: [4, 5, 10, 11, 14, 15], 2025: [4, 5, 11, 12, 14, 15], 2024: [4, 5, 8, 9, 13, 14]}\nNEG = {(2026, 5), (2026, 11), (2025, 4), (2025, 5), (2025, 12), (2025, 14),\n       (2024, 5), (2024, 8), (2024, 13)}\n# 지문 범위를 (가) 또는 (나) 하나로 좁힌 문항\nONLY_GA = {(2026, 5), (2025, 5), (2024, 13)}\nONLY_NA = {(2024, 14)}\n\nNOISE = [r'^이 문제지에 관한 저작권', r'^홀수형$', r'^국어 영역', r'^\\d+\\s*$', r'^\\d+\\s+\\d+$',\n         r'^\\d+\\s*/\\s*\\d+$', r'^제\\s*\\d\\s*교시', r'^\\d{4}학년도', r'^\\(화법과 작문\\)',\n         r'^\\d+\\s+홀수형$', r'^홀수형\\s+\\d+$']\nHDR = re.compile(r'^\\[(\\d+)[～~\\-](\\d+)\\]')\nQRE = re.compile(r'^(\\d{1,2})\\.\\s')\nCIRC = '①②③④⑤'\n\n\ndef find_pdf(folder, year):\n    for name in os.listdir(folder):\n        n = unicodedata.normalize('NFC', name)\n        if n.startswith(str(year)) and '문제' in n and n.lower().endswith('.pdf'):\n            return os.path.join(folder, name)\n    return None\n\n\ndef clean_lines(text):\n    out = []\n    for ln in text.split('\\n'):\n        s = ln.strip()\n        if s and not any(re.match(p, s) for p in NOISE):\n            out.append(s)\n    return out\n\n\ndef read_lines(path, maxpages=12):\n    \"\"\"두 단으로 된 쪽을 왼쪽 단, 오른쪽 단 순서로 읽는다.\"\"\"\n    lines = []\n    with pdfplumber.open(path) as pdf:\n        for pg in pdf.pages[:maxpages]:\n            w, h = pg.width, pg.height\n            for box in ((0, 0, w / 2, h), (w / 2, 0, w, h)):\n                lines += clean_lines(pg.crop(box).extract_text() or '')\n    return lines\n\n\ndef tidy(t):\n    t = re.sub(r'\\(cid:\\d+\\)', ' ', t)\n    t = re.sub('[\\U000f0000-\\U000fffff]', '', t)\n    return re.sub(r'\\s+', ' ', t).strip()\n\n\ndef segments(lines):\n    segs, cur = [], None\n    for ln in lines:\n        m = HDR.match(ln)\n        if m and ('다음 글을' in ln or '다음은' in ln):\n            cur = {'a': int(m.group(1)), 'b': int(m.group(2)), 'lines': []}\n            segs.append(cur)\n        elif cur is not None:\n            cur['lines'].append(ln)\n    for s in segs:\n        qs, pas, curq = {}, [], None\n        for ln in s['lines']:\n            m = QRE.match(ln)\n            if m and s['a'] <= int(m.group(1)) <= s['b'] and int(m.group(1)) not in qs:\n                curq = int(m.group(1))\n                qs[curq] = [ln]\n            elif curq is None:\n                pas.append(ln)\n            else:\n                qs[curq].append(ln)\n        s['pas'], s['qs'] = pas, qs\n    return segs\n\n\ndef split_options(block):\n    txt = re.sub(r'^\\d+\\.\\s*', '', ' '.join(block))\n    idx = [txt.find(c) for c in CIRC]\n    if any(i < 0 for i in idx) or idx != sorted(idx):\n        return None\n    return [txt[idx[i] + 1:(idx[i + 1] if i < 4 else len(txt))].strip() for i in range(5)]\n\n\ndef split_ga_na(pas):\n    g = n = None\n    for i, l in enumerate(pas):\n        if l == '(가)':\n            g = i\n        if l == '(나)':\n            n = i\n    if g is None or n is None:\n        return None\n    return ' '.join(pas[g + 1:n]), ' '.join(pas[n + 1:])\n\n\ndef main():\n    ap = argparse.ArgumentParser()\n    ap.add_argument('--dir', default='.', help='문제지 PDF가 있는 폴더')\n    ap.add_argument('--out', default='kice_items.json', help='저장할 파일')\n    ap.add_argument('--page', help='원문을 넣을 페이지 파일(index.html)')\n    ap.add_argument('--html-out', default='similarity-lab-원문.html', help='원문이 들어간 페이지 저장 위치')\n    a = ap.parse_args()\n\n    items = []\n    for year in (2026, 2025, 2024):\n        path = find_pdf(a.dir, year)\n        if not path:\n            sys.exit(f'{year}학년도 문제지 PDF를 찾지 못했다. 폴더와 파일 이름을 확인한다.')\n        for s in segments(read_lines(path)):\n            for q, block in s['qs'].items():\n                if q not in SEL[year]:\n                    continue\n                opts = split_options(block)\n                if opts is None:\n                    print(f'경고: {year}학년도 {q}번 선지를 나누지 못했다.')\n                    continue\n                passage = ' '.join(s['pas'])\n                pp = split_ga_na(s['pas'])\n                if pp and (year, q) in ONLY_GA:\n                    passage = pp[0]\n                elif pp and (year, q) in ONLY_NA:\n                    passage = pp[1]\n                items.append({'id': f'{year}-{q}', 'passage': tidy(passage),\n                              'options': [tidy(o) for o in opts]})\n    with open(a.out, 'w', encoding='utf-8') as f:\n        json.dump(items, f, ensure_ascii=False)\n    print(f'{len(items)}개 문항을 {a.out}에 저장했다. (18개여야 정상)')\n    if a.page:\n        with open(a.page, encoding='utf-8') as f:\n            html = f.read()\n        marker = 'let REALTEXT=null;'\n        if html.count(marker) != 1:\n            sys.exit('페이지 파일에서 원문 자리를 찾지 못했다. 받은 index.html이 맞는지 확인한다.')\n        data = json.dumps({it['id']: it for it in items}, ensure_ascii=False).replace('<\/', '<\\\\/')\n        with open(a.html_out, 'w', encoding='utf-8') as f:\n            f.write(html.replace(marker, 'let REALTEXT=' + data + ';'))\n        print(f'원문이 들어간 페이지를 {a.html_out}에 저장했다. 더블클릭해서 열면 된다.')\n    print('이 파일에는 기출 원문이 들어 있으니 인터넷에 올리지 말고 내 컴퓨터에서만 쓴다.')\n\n\nif __name__ == '__main__':\n    main()\n";
+function downloadScript(){
+  const blob=new Blob([SCRIPT_TEXT],{type:'text/x-python;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='kice_extract.py';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$('lnkRepo').href='https://github.com/'+REPO;
+$('lnkZip').href='https://github.com/'+REPO+'/archive/refs/heads/main.zip';
+function loadSavedText(){
+  if(REALTEXT!==null)return;
+  try{const r=localStorage.getItem('kice-items-v1');if(r){const m=JSON.parse(r);if(m&&typeof m==='object')REALTEXT=m;}}catch(e){}
+}
+custom=loadCustom();
+loadSavedText();
+render();
+</script>
+</body>
+</html>
